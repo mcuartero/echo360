@@ -493,9 +493,20 @@ class EchoCloudVideo(EchoVideo):
             mp4_files = self.video_json["lesson"]["video"]["media"]["media"]["current"][
                 "primaryFiles"
             ]
+            for i, obj in enumerate(mp4_files):
+                print("\nFile {}: {}".format(i, obj))
+                            
             urls = [obj["s3Url"] for obj in mp4_files]
             if len(urls) == 0:
                 raise ValueError("Cannot find mp4 urls")
+
+            long_files = [
+                obj for obj in mp4_files if obj.get("durtationMillis", obj.get("duration", 999999)) > 60000
+            ]
+
+            if long_files:
+                return next(reversed([obj["s3Url"] for obj in long_files]))
+
             # usually hd is the last one. so we will sort in reverse order
             return next(reversed(urls))
 

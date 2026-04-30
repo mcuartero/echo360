@@ -64,6 +64,8 @@ def build_chrome_driver(
     persistent_session,
 ):
     from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.chrome.service import Service
+    from webdriver_manager.chrome import ChromeDriverManager
 
     opts = Options()
     if not setup_credential:
@@ -73,34 +75,11 @@ def build_chrome_driver(
         opts.add_argument("--user-data-dir={}".format(folder_path))
     opts.add_argument("--window-size=1920x1080")
     opts.add_argument("user-agent={}".format(user_agent))
-
-    kwargs = dict()
-    if selenium_version_ge_4100:
-        kwargs["options"] = opts
-    else:
-        kwargs["chrome_options"] = opts
-
-    if selenium_version_ge_4100:
-        from selenium.webdriver.chrome.service import Service
-
-        service = Service(**kwargs, log_file=log_path)
-        kwargs = dict(
-            service=service,
-            options=opts,
-        )
-    else:
-        if use_local_binary:
-            # newer selenium helps us to auto-download executable
-            from .binary_downloader.chromedriver import ChromedriverDownloader
-
-            kwargs["executable_path"] = ChromedriverDownloader().get_bin()
-        kwargs.update(
-            dict(
-                service_log_path=log_path,
-                chrome_options=opts,
-            )
-        )
-    return webdriver.Chrome(**kwargs)
+    opts.add_argument("--no-sandbox")
+    opts.add_argument("--disable-dev-shm-usage")
+    
+    service = Service(ChromeDriverManager().install(), log_output=log_path)
+    return webdriver.Chrome(service=service, options=opts)
 
 
 def build_firefox_driver(

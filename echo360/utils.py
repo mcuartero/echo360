@@ -1,3 +1,5 @@
+import os
+
 def naive_versiontuple(v):
     """
     This only works for version tuple with the same number of parts.
@@ -6,4 +8,4 @@ def naive_versiontuple(v):
     return tuple(map(int, (v.split("."))))
 
 
-PERSISTENT_SESSION_FOLDER = "_browser_persistent_session"
+PERSISTENT_SESSION_FOLDER = os.path.join(os.path.expanduser("~"), "echo360_chrome_profile")
