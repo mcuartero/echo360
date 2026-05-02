@@ -491,12 +491,10 @@ class EchoCloudVideo(EchoVideo):
             m3u8urls = [m["uri"] for m in manifests]
             # somehow the hostname for these urls are from amazon (probably offloading
             # to them.) We need to set the host back to echo360.org
-            try:
-                # python3
-                from urllib.parse import urlparse
-            except ImportError:
-                # python2
-                from urlparse import urlparse
+            
+            # python3
+            from urllib.parse import urlparse
+            
             new_m3u8urls = []
             new_hostname = urlparse(self.hostname).netloc
             for url in m3u8urls:

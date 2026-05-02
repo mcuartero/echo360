@@ -13,8 +13,11 @@ from pick import pick
 import selenium
 from selenium import webdriver
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+from selenium.webdriver.chrome.options import Options
 import selenium.common.exceptions as seleniumException
 import warnings  # hide the warnings of phantomjs being deprecated
+
+opts: Options = Options()
 
 warnings.filterwarnings("ignore", category=UserWarning, module="selenium")
 
@@ -94,8 +97,8 @@ def build_firefox_driver(
     persistent_session,
 ):
     if persistent_session:
-        opts.add_argument("--user-data-dir={}".format(PERSISTENT_SESSION_FOLDER))
-        opts.add_argument("--profile-directory=Default")
+        opts.add_argument("--user-data-dir={}".format(PERSISTENT_SESSION_FOLDER)) #noqa
+        opts.add_argument("--profile-directory=Default") # noqa
 
     profile = webdriver.FirefoxProfile()
     profile.set_preference("general.useragent.override", user_agent)
