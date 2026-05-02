@@ -8,4 +8,4 @@ def naive_versiontuple(v):
     return tuple(map(int, (v.split("."))))
 
 
-PERSISTENT_SESSION_FOLDER = os.path.join(os.path.expanduser("~"), "echo360_chrome_profile")
+PERSISTENT_SESSION_FOLDER = os.path.join(os.path.expanduser("~"), "echo360_session", "chrome_data")

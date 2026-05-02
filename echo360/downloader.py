@@ -71,13 +71,16 @@ def build_chrome_driver(
     if not setup_credential:
         opts.add_argument("--headless")
     if persistent_session:
-        folder_path = PERSISTENT_SESSION_FOLDER  # default current dir
-        opts.add_argument("--user-data-dir={}".format(folder_path))
+        opts.add_argument("--user-data-dir={}".format(PERSISTENT_SESSION_FOLDER))
+        opts.add_argument("--profile-directory=Default")
     opts.add_argument("--window-size=1920x1080")
     opts.add_argument("user-agent={}".format(user_agent))
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
-    
+    opts.add_argument("--no-first-run")
+    opts.add_argument("--no-default-browser-check")
+    opts.add_argument("--disable-extensions")
+
     service = Service(ChromeDriverManager().install(), log_output=log_path)
     return webdriver.Chrome(service=service, options=opts)
 
@@ -91,9 +94,8 @@ def build_firefox_driver(
     persistent_session,
 ):
     if persistent_session:
-        raise NotImplementedError(
-            "Save-login not implemented for Firefox! Feel free to make a PR for it..."
-        )
+        opts.add_argument("--user-data-dir={}".format(PERSISTENT_SESSION_FOLDER))
+        opts.add_argument("--profile-directory=Default")
 
     profile = webdriver.FirefoxProfile()
     profile.set_preference("general.useragent.override", user_agent)

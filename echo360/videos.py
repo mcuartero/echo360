@@ -1,5 +1,6 @@
 import os
 import re
+from unittest import result
 
 import dateutil.parser
 import operator
@@ -387,25 +388,43 @@ class EchoCloudVideo(EchoVideo):
         if audio_file is not None:
             _inputs[audio_file] = None
         try:
+            import imageio_ffmpeg
+            ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
             ff = ffmpy.FFmpeg(
+                executable=ffmpeg_path,
                 global_options="-loglevel panic",
                 inputs=_inputs,
                 outputs={final_file: ["-c:v", "copy", "-c:a", "ac3"]},
             )
             ff.run()
         except ffmpy.FFExecutableNotFoundError:
-            print(
-                '[WARN] Skipping mixing of audio/video because "ffmpeg" not installed.'
-            )
+            print('[WARN] Skipping mixing of audio/video because "ffmpeg" not installed.')
             return False
         except ffmpy.FFRuntimeError:
-            print(
-                "[Error] Skipping mixing of audio/video because ffmpeg exited with non-zero status code."
-            )
+            print("[Error] Skipping mixing of audio/video because ffmpeg exited with non-zero status code.")
             return False
         return True
 
     def _loop_find_m3u8_url(self, video_url, waitsecond=15, max_attempts=5):
+
+        def from_medias():
+            medias = self.video_json["lesson"].get("medias", [])
+            video_medias = [m for m in medias if m.get("mediaType") == "Video" and m.get("isAvailable")]
+            if not video_medias:
+                raise ValueError("No available video medias found")
+            
+            media_id = video_medias[0]["id"]
+            institution_id = self.video_json["lesson"]["lesson"]["institutionId"]
+            
+            # derive content hostname: https://echo360.net.au -> https://content.echo360.net.au
+            from urllib.parse import urlparse
+            parsed = urlparse(self.hostname)
+            content_host = "{}://content.{}".format(parsed.scheme, parsed.netloc)
+            
+            s1_url = "{}/0000.{}/{}/1/s1_av.m3u8".format(content_host, institution_id, media_id)
+            print(">> Constructed s1_av URL:", s1_url)
+            return [s1_url]
+
         def brute_force_get_url(suffix):
             # this is the first method I tried, which sort of works
             stale_attempt = 1
@@ -490,6 +509,12 @@ class EchoCloudVideo(EchoVideo):
             return new_m3u8urls
 
         def from_json_mp4():
+
+            # debug
+            print(">> video_json keys:", list(self.video_json.keys()))
+            print(">> lesson keys:", list(self.video_json["lesson"].keys()))
+            print(">> full json:", self.video_json) 
+
             mp4_files = self.video_json["lesson"]["video"]["media"]["media"]["current"][
                 "primaryFiles"
             ]
@@ -513,6 +538,12 @@ class EchoCloudVideo(EchoVideo):
         # try different methods in series, first the preferred ones, then the more
         # obscure ones.
         try:
+            _LOGGER.debug("Trying from_medias method")
+            result = from_medias()
+            return result
+        except Exception as e:
+            print(">> from_medias failed:", e)
+        try:
             _LOGGER.debug("Trying from_json_mp4 method")
             return from_json_mp4()
         except Exception as e:
@@ -529,33 +560,58 @@ class EchoCloudVideo(EchoVideo):
             _LOGGER.debug("Encountered exception: {}".format(e))
         try:
             _LOGGER.debug("Trying brute_force_all_m3u8 method")
-            m3u8urls = brute_force_get_url(suffix="m3u8")
+            m3u8urls = list(brute_force_get_url(suffix="m3u8"))
+            m3u8urls = [u for u in m3u8urls if "av.m3u8" in u]
+            if not m3u8urls:
+                raise Exception("No av.m3u8 urls found")
+            # prefer s2+ over s1 (s1 is usually the intro)
+            main = [u for u in m3u8urls if "s1_av.m3u8" not in u]
+            return (main or m3u8urls)[:2]
         except Exception as e:
-            _LOGGER.debug("Encountered exception: {}".format(e))
             _LOGGER.debug("All methods had been exhausted.")
             print("Tried all methods to retrieve videos but all had failed!")
             raise
 
-        # find one that has audio + video
-        m3u8urls = [url for url in m3u8urls if url.endswith("av.m3u8")]
-        if len(m3u8urls) == 0:
-            print(
-                "No audio+video m3u8 files found! Skipping...\n"
-                "This can either be (i) Credential failure? (ii) Logic error "
-                "in the script. (iii) This lecture only provides audio?\n"
-                "This script is hard-coded to download audio+video. "
-                "If this is your intended behaviour, "
-                "please contact the author."
-            )
+        m3u8urls = [] # Initialize as a list
+
+        # 1. Primary Retrieval Logic
+        try:
+            # We explicitly convert the 'set' from brute_force to a 'list'
+            found_urls = brute_force_get_url(suffix="m3u8")
+            m3u8urls = list(found_urls) if isinstance(found_urls, set) else found_urls
+        except Exception as e:
+            _LOGGER.debug("M3U8 search failed, trying fallback: {}".format(e))
+            try:
+                m3u8urls = brute_force_get_mp4_url()
+            except Exception:
+                raise
+
+        # 2. Cleanup and Data Type Validation
+        # This prevents the AttributeError in download_single()
+        if isinstance(m3u8urls, str):
+            m3u8urls = [m3u8urls]
+        
+        # Filter for audio/video streams only
+        m3u8urls = [u for u in m3u8urls if "av.m3u8" in u or u.endswith(".mp4")]
+
+        if not m3u8urls:
             return False
-        # There could exists multiple m3u8 files
-        # (e.g. .../s1_av.m3u8, .../s2_av.m3u8, etc.) Probably to refer to
-        # different quality?? We will set it to always prefer higher number.
-        # Since (from my experiment) the prefixes are always the same, we will
-        # just use text sorting to get the higher number.
-        # Some university have two different video feeds, use flag `-a` to
-        # download both feeds.
-        m3u8urls = list(reversed(m3u8urls))
+
+        # 3. Intro-Skipping Logic (Targeting s2_av over s1_av)[cite: 1]
+        def get_index(url):
+            match = re.search(r"s(\d+)_av.m3u8", url)
+            return int(match.group(1)) if match else 0
+        
+        # Sort descending so s2 (lecture) is index 0 and s1 (intro) is index 1[cite: 1]
+        m3u8urls.sort(key=get_index, reverse=True)
+
+        # If s2/s3 exist, remove the s1 (14s intro) from the list[cite: 1]
+        if len(m3u8urls) > 1:
+            main_lecture = [u for u in m3u8urls if "s1_av.m3u8" not in u]
+            if main_lecture:
+                m3u8urls = main_lecture
+
+        # Return the list of strings to download()[cite: 1]
         return m3u8urls[:2]
 
     def _extract_date(self, video_json):
