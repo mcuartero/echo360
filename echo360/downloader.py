@@ -351,7 +351,7 @@ class EchoDownloader(object):
                     sub_lecture_num = "{}.{}".format(sub_lecture_num, sub_i + 1)
                 title = "Lecture {} [{}]".format(sub_lecture_num, sub_video.title)
                 filename = self._get_filename(
-                    self._course.course_id, sub_video.date, title
+                    self._course.course_name, sub_video.date, title
                 )
                 videos_to_be_download.append((filename, sub_video))
         if self.interactive_mode:
@@ -400,11 +400,12 @@ class EchoDownloader(object):
         self._driver.get(self._course.url)
 
     def _get_filename(self, course, date, title):
+        clean_title = re.sub(r'\[.*?\]', '', title).strip()
         if course:
             # add [:150] to avoid filename too long exception
-            filename = "{} - {} - {}".format(course, date, title[:150])
+            filename = "{} - {}".format(course, clean_title[:150])
         else:
-            filename = "{} - {}".format(date, title[:150])
+            filename = clean_title
         # replace invalid character for files
         return self.regex_replace_invalid.sub("_", filename)
 
