@@ -198,6 +198,11 @@ class EchoCloudVideos(EchoVideos):
 
         for i, video_json in enumerate(videos_json):
             try:
+                lesson = video_json.get("lesson", {})
+                if lesson.get("isFuture", False) or not lesson.get("hasVideo", False):
+                    # skip future videos and videos without video content
+                    update_course_retrieval_progress(i + 1, total_videos_num)
+                    continue
                 self._videos.append(
                     EchoCloudVideo(
                         video_json, self._driver, hostname, alternative_feeds
@@ -494,7 +499,7 @@ class EchoCloudVideo(EchoVideo):
             
             # python3
             from urllib.parse import urlparse
-            
+
             new_m3u8urls = []
             new_hostname = urlparse(self.hostname).netloc
             for url in m3u8urls:

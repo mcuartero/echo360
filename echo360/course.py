@@ -10,6 +10,7 @@ from .videos import EchoVideos, EchoCloudVideos
 
 _LOGGER = logging.getLogger(__name__)
 
+print("LOADING COURSE.PY FROM: ", __file__)
 
 class EchoCourse(object):
     def __init__(self, uuid, hostname=None, alternative_feeds=False):
@@ -174,17 +175,17 @@ class EchoCloudCourse(EchoCourse):
 
     @property
     def course_name(self):
+        print("DEBUG: course_name called, _course_name is:", self._course_name)
         if self._course_name is None:
-            # try each available video as some video might be special has contains
-            # no information about the course.
             for v in self.course_data["data"]:
                 try:
-                    self._course_name = v["lesson"]["video"]["published"]["courseName"]
+                    lesson_name = v["lesson"]["lesson"]["name"].split("_")[0]
+                    print("DEBUG lesson_name:", lesson_name)
+                    self._course_name = lesson_name
                     break
-                except KeyError:
-                    pass
+                except KeyError as e:
+                    print("DEBUG KeyError:", e)
             if self._course_name is None:
-                # no available course name found...?
                 self._course_name = "[[UNTITLED]]"
         return self._course_name
 

@@ -193,9 +193,9 @@ def handle_args():
     output_path = (
         os.path.expanduser(args["output"])
         if args["output"] is not None
-        else "default_out_path"
+        else "lectures"
     )
-    output_path = output_path if os.path.isdir(output_path) else "default_out_path"
+    output_path = output_path if os.path.isdir(output_path) else "lectures"
 
     after_date = (
         try_parse_date(args["after_date"], "%Y-%m-%d")
